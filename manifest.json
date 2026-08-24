@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Bilibili 观看记录增强",
+  "version": "1.2.0",
+  "description": "自动保存B站视频观看记录（标题/链接/UP主/最后观看时间，API优先、不重复记录），支持导入历史记录页HTML/导出JSON、按日期筛选与封面显示。",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Bilibili 观看记录",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "alarms",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://*.bilibili.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.bilibili.com/video/*",
+        "https://bilibili.com/video/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

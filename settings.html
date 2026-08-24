@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B站观看记录 - 设置</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bwh-page">
+  <div class="bwh-wrap">
+    <div class="bwh-header">
+      <div class="bwh-header-title">设置</div>
+      <div class="bwh-header-sub" id="last-sync"></div>
+      <div class="bwh-actions">
+        <button id="reset" class="bwh-btn">恢复默认</button>
+        <button id="save" class="bwh-btn bwh-btn-primary">保存设置</button>
+      </div>
+    </div>
+    <div class="bwh-status" id="status"></div>
+
+    <div class="bwh-card">
+      <h2>颜色主题</h2>
+      <p class="bwh-hint">实时预览；保存后应用于查询页与弹窗。</p>
+      <div class="bwh-grid">
+        <label class="bwh-field">主题色<input type="color" id="theme-primary"></label>
+        <label class="bwh-field">主题色·悬停<input type="color" id="theme-primary-dark"></label>
+        <label class="bwh-field">页面背景<input type="color" id="theme-bg"></label>
+        <label class="bwh-field">卡片背景<input type="color" id="theme-card"></label>
+        <label class="bwh-field">主文字<input type="color" id="theme-text"></label>
+        <label class="bwh-field">次要文字<input type="color" id="theme-text2"></label>
+        <label class="bwh-field">弱化文字<input type="color" id="theme-text3"></label>
+        <label class="bwh-field">边框<input type="color" id="theme-border"></label>
+      </div>
+    </div>
+
+    <div class="bwh-card">
+      <h2>背景图片</h2>
+      <p class="bwh-hint">支持图片链接或本地图片。</p>
+      <div class="bwh-row">
+        <input type="text" id="bg-url" placeholder="https://example.com/image.jpg">
+      </div>
+      <div class="bwh-actions">
+        <label class="bwh-btn">上传本地图片<input type="file" id="bg-file" accept="image/*" hidden></label>
+        <button id="bg-clear" class="bwh-btn bwh-btn-danger">清除背景</button>
+      </div>
+    </div>
+
+    <div class="bwh-card">
+      <h2>显示</h2>
+      <p class="bwh-hint">默认的观看记录展示方式（可在查询页随时切换）。</p>
+      <div class="bwh-row">
+        <label class="bwh-field">默认显示模式
+          <select id="view-mode" style="flex:none; height:34px; border:1px solid var(--bwh-border,#e3e5e7); border-radius:6px; padding:0 8px; background:#fff; color:var(--bwh-text,#18191c);">
+            <option value="list">列表</option>
+            <option value="grid">网格</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="bwh-card">
+      <h2>自动同步</h2>
+      <p class="bwh-hint">启用后，扩展会在后台按设定间隔调用 B 站官方观看历史 API 拉取记录（需要登录 B 站账号；保存时会立即同步一次）。</p>
+      <label class="bwh-check">
+        <input type="checkbox" id="auto-sync-enabled">启用自动同步
+      </label>
+      <div class="bwh-row">
+        <label class="bwh-field">同步间隔
+          <input type="number" id="auto-sync-interval" min="1" max="10080" style="width:110px; flex:none;">分钟
+        </label>
+      </div>
+      <p class="bwh-hint">最短 1 分钟，最长 10080 分钟（一周）。</p>
+    </div>
+
+    <div class="bwh-card">
+      <h2>导入</h2>
+      <p class="bwh-hint">可导入历史记录页 HTML 文件（https://www.bilibili.com/history ）或本扩展导出的 JSON 文件。</p>
+      <div class="bwh-actions">
+        <label class="bwh-btn">导入历史记录页 HTML<input type="file" id="import-html-file" accept=".html,.htm,text/html" hidden></label>
+        <label class="bwh-btn">导入导出 JSON<input type="file" id="import-json-file" accept=".json,application/json" hidden></label>
+      </div>
+      <div class="bwh-status" id="import-status">尚未导入</div>
+
+      <div class="bwh-sep"></div>
+      <div class="bwh-section-title">导出与清空</div>
+      <div class="bwh-actions">
+        <button id="export-json" class="bwh-btn">导出 JSON</button>
+        <button id="clear-records" class="bwh-btn bwh-btn-danger">清空记录</button>
+      </div>
+      <div class="bwh-status" id="records-status"></div>
+    </div>
+
+    <div class="bwh-card">
+      <h2>日志</h2>
+      <div class="bwh-actions">
+        <button id="log-refresh" class="bwh-btn">刷新</button>
+        <button id="log-login" class="bwh-btn">检查登录状态</button>
+        <button id="log-copy" class="bwh-btn">复制日志</button>
+        <button id="log-clear" class="bwh-btn bwh-btn-danger">清空日志</button>
+      </div>
+      <div class="bwh-log-filters" id="log-filters">
+        <button class="bwh-btn bwh-log-filter active" data-level="all">全部</button>
+        <button class="bwh-btn bwh-log-filter" data-level="debug">调试</button>
+        <button class="bwh-btn bwh-log-filter" data-level="warn">警告</button>
+        <button class="bwh-btn bwh-log-filter" data-level="error">错误</button>
+      </div>
+      <div class="bwh-log-list" id="log-list"></div>
+    </div>
+  </div>
+  <script src="bwh-ui.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
