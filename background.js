@@ -6,7 +6,7 @@ const STORAGE_KEY_LOGS = 'bwh_logs_v1';
 const AUTO_SYNC_ALARM = 'bwh-auto-sync';
 const APP_NAME = 'bilibili-watch-history';
 const APP_VERSION = '1.2.0';
-const HOUR_MS = 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
 const API_BASE = 'https://api.bilibili.com';
 const LOG_CAP = 500;
 
@@ -350,8 +350,8 @@ async function fetchHistoryWithFallback(params) {
 
 /* ---------------- 工具 ---------------- */
 
-function truncateToHour(ts) {
-  return Math.floor(ts / HOUR_MS) * HOUR_MS;
+function truncateToMinute(ts) {
+  return Math.floor(ts / MINUTE_MS) * MINUTE_MS;
 }
 
 function canonicalizeUrl(url) {
@@ -560,7 +560,7 @@ function itemToRecord(item) {
     title: title,
     url: videoUrl(bvid),
     up: up,
-    lastWatchedAt: truncateToHour(viewAt)
+    lastWatchedAt: truncateToMinute(viewAt)
   };
 }
 
@@ -853,7 +853,7 @@ async function mergeImportedItems(items) {
       title: s.title || '',
       url: videoUrl(s.bvid),
       up: s.up || '',
-      lastWatchedAt: truncateToHour(s.viewAt || Date.now())
+      lastWatchedAt: truncateToMinute(s.viewAt || Date.now())
     };
     const r = mergeRecord(list, rec);
     if (r.added) added++;
@@ -1124,7 +1124,7 @@ async function handleRecord(msg) {
     title: (info && info.title) || String(fb.title || '').trim(),
     url: videoUrl(bvid),
     up: (info && info.up) || String(fb.up || '').trim(),
-    lastWatchedAt: truncateToHour(Date.now())
+    lastWatchedAt: truncateToMinute(Date.now())
   };
   if (!record.title) {
     log('warn', 'record', '未能获取视频标题: ' + bvid);
@@ -1359,7 +1359,7 @@ if (typeof module !== 'undefined' && module.exports) {
     getMixinKey: getMixinKey,
     encWbi: encWbi,
     av2bv: av2bv,
-    truncateToHour: truncateToHour,
+    truncateToMinute: truncateToMinute,
     canonicalizeUrl: canonicalizeUrl,
     normalizeSettings: normalizeSettings,
     mergeRecord: mergeRecord,

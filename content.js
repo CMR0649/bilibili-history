@@ -3,14 +3,14 @@
   if (window.__bwhContentLoaded) return;
   window.__bwhContentLoaded = true;
 
-  const HOUR_MS = 60 * 60 * 1000;
+  const MINUTE_MS = 60 * 1000;
   const MIN_PLAY_SECONDS = 5; // 观看超过 5 秒即记录
 
   let currentBvid = '';
   let videoEl = null;
   let played = 0; // 累计播放秒数
   let recorded = false;
-  let lastReportedHour = 0;
+  let lastReportedMinute = 0;
 
   // 上报日志到后台（多等级：debug / warn / error），失败静默
   function sendLog(level, tag, msg) {
@@ -46,10 +46,10 @@
 
   function report() {
     if (!currentBvid || played < MIN_PLAY_SECONDS) return;
-    const hour = Math.floor(Date.now() / HOUR_MS);
-    if (recorded && hour === lastReportedHour) return; // 同小时不重复上报
+    const minute = Math.floor(Date.now() / MINUTE_MS);
+    if (recorded && minute === lastReportedMinute) return; // 同一分钟内不重复上报
     recorded = true;
-    lastReportedHour = hour;
+    lastReportedMinute = minute;
     const info = extractDomInfo();
     const msg = {
       type: 'record',
@@ -70,7 +70,7 @@
     videoEl = v;
     played = 0;
     recorded = false;
-    lastReportedHour = 0;
+    lastReportedMinute = 0;
     sendLog('debug', 'content', '绑定播放器 ' + currentBvid);
     v.addEventListener(
       'timeupdate',
@@ -98,7 +98,7 @@
       videoEl = null;
       played = 0;
       recorded = false;
-      lastReportedHour = 0;
+      lastReportedMinute = 0;
       sendLog('debug', 'content', '检测到视频页 ' + bvid);
     }
     const v = document.querySelector('video');
@@ -114,7 +114,7 @@
       videoEl = null;
       played = 0;
       recorded = false;
-      lastReportedHour = 0;
+      lastReportedMinute = 0;
       scan();
     }
   }, 1000);

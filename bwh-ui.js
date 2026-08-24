@@ -1,18 +1,16 @@
 (function (global) {
   'use strict';
 
-  const HOUR_MS = 60 * 60 * 1000;
-
   const BWH = {};
 
   /* ---------------- 基础工具 ---------------- */
 
-  BWH.formatHour = function (ts) {
+  BWH.formatMinute = function (ts) {
     const d = new Date(ts);
     const p = (n) => String(n).padStart(2, '0');
     return (
       d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
-      ' ' + p(d.getHours()) + ':00'
+      ' ' + p(d.getHours()) + ':' + p(d.getMinutes())
     );
   };
 
@@ -333,7 +331,7 @@
 
       const meta = el('div', 'bwh-meta');
       meta.appendChild(el('span', 'bwh-up', 'UP主：' + (r.up || '未知')));
-      meta.appendChild(el('span', 'bwh-time', '最后观看：' + BWH.formatHour(r.lastWatchedAt)));
+      meta.appendChild(el('span', 'bwh-time', '最后观看：' + BWH.formatMinute(r.lastWatchedAt)));
       info.appendChild(meta);
       item.appendChild(info);
 
