@@ -1,10 +1,3 @@
-/*!
- * Bilibili 观看记录增强 —— 视频页内容脚本
- *
- * 检测 /video/BVxxx 页面上的播放行为：累计播放达到阈值后上报记录；
- * 同一视频同一小时内不重复上报，跨小时自动更新“最后观看时间”。
- * 数据获取由后台处理：优先使用 B 站 API，失败时回退页面 DOM。
- */
 (() => {
   'use strict';
   if (window.__bwhContentLoaded) return;

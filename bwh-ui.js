@@ -1,14 +1,3 @@
-/*!
- * Bilibili 观看记录增强 —— 共享 UI 逻辑
- *
- * 同时被以下场景使用：
- *  - 独立查询页 history.html
- *  - 设置页 settings.html
- *
- * 功能：列表 / 网格视图切换（持久化到设置）、按日期筛选（日历日期选择）、
- * 封面从 B 站 API 获取并懒加载（只加载进入视口的封面，通过 IntersectionObserver
- * + 批量请求实现）。
- */
 (function (global) {
   'use strict';
 

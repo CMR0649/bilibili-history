@@ -1,7 +1,3 @@
-/*!
- * Bilibili 观看记录增强 —— 设置页
- * 颜色主题 / 背景图片 / 自动同步间隔；改动实时预览，点击「保存设置」持久化。
- */
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
