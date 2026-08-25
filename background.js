@@ -476,20 +476,42 @@ async function fetchHistoryCursor(maxPages) {
   return all;
 }
 
-// x/v2/history（旧版接口）：pn/ps 分页，data 直接为数组，无 30 条上限问题
+// x/v2/history：pn 分页（1~4），接口返回上限约 300 条（约 75 条/页）
 async function fetchHistoryV2(maxPages) {
   log('debug', 'sync', '使用 x/v2/history 接口拉取官方观看历史');
   const all = [];
   for (let pn = 1; pn <= maxPages; pn++) {
-    const params = { pn: pn, ps: 50 };
+    const params = { pn: pn }; // 与官方约定一致：https://api.bilibili.com/x/v2/history?pn=N
     const json = await fetchV2WithFallback(params);
-    const list = Array.isArray(json.data) ? json.data : ((json.data && json.data.list) || []);
+    const list = extractV2List(json);
+    if (pn === 1) {
+      // 记录响应结构，便于排查接口变更
+      const d = json && json.data;
+      log(
+        'debug',
+        'sync',
+        'v2 响应 data 结构: ' +
+          (Array.isArray(d) ? 'array(' + d.length + ')' : (d && typeof d === 'object' ? 'object，键: ' + Object.keys(d).slice(0, 10).join(',') : String(typeof d)))
+      );
+    }
     all.push.apply(all, list);
     log('debug', 'sync', 'x/v2/history 第 ' + pn + ' 页拉取 ' + list.length + ' 条');
-    if (list.length < 50) break; // 已到最后一页
+    if (!list.length) break; // 空页 = 已到末尾
   }
   log('debug', 'sync', 'x/v2/history 共拉取 ' + all.length + ' 条');
   return all;
+}
+
+// 兼容多种 v2 响应结构：data 数组 / { list } / { items } / { data }
+function extractV2List(json) {
+  const d = json && json.data;
+  if (Array.isArray(d)) return d;
+  if (d && typeof d === 'object') {
+    for (const key of ['list', 'items', 'vlist', 'data']) {
+      if (Array.isArray(d[key])) return d[key];
+    }
+  }
+  return [];
 }
 
 // x/v2/history 请求回退链：无签名 → w_rid 签名 → wbi_sign 签名
@@ -539,28 +561,37 @@ async function fetchOfficialHistory(maxPages) {
 
 function extractBvid(item) {
   if (!item) return '';
-  return item.bvid || (item.history && item.history.bvid) || (item.aid ? av2bvSafe(item.aid) : '') || '';
+  const raw = item.bvid || (item.history && item.history.bvid) || '';
+  if (typeof raw === 'string' && /^BV[0-9A-Za-z]+$/.test(raw)) return raw;
+  // 从链接字段提取（部分条目只带链接）
+  const link = String(item.url || item.redirect_link || item.short_link || '');
+  const m = link.match(/\/video\/(BV[0-9A-Za-z]+)/);
+  if (m) return m[1];
+  // aid → bvid
+  if (item.aid) return av2bvSafe(Number(item.aid));
+  return '';
 }
 
 function itemToRecord(item) {
   if (!item) return null;
   const bvid = extractBvid(item);
-  const title = String(item.title || '').trim();
+  const title = String(item.title || item.name || item.long_title || '').trim();
   if (!bvid || !title) return null;
-  // 只记录用户投稿视频（archive），排除番剧 / 影视 / 课程等
+  // 仅排除明确的非投稿视频业务类型；其余（含未知业务）一律记录，避免误判为重复/被过滤
   const business = String(item.business || '');
-  if (business && business !== 'archive') return null;
+  if (business === 'pgc' || business === 'cheese' || business === 'bangumi') return null;
   const up = String(
     item.author_name || item.owner_name || item.up_name ||
     (item.author && item.author.name) ||
     (item.owner && item.owner.name) || ''
   ).trim();
-  const viewAt = item.view_at ? Number(item.view_at) * 1000 : Date.now();
+  const rawViewAt = Number(item.view_at);
+  const viewAt = rawViewAt > 1e12 ? rawViewAt : rawViewAt * 1000; // 兼容秒 / 毫秒
   return {
     title: title,
     url: videoUrl(bvid),
     up: up,
-    lastWatchedAt: truncateToMinute(viewAt)
+    lastWatchedAt: truncateToMinute(viewAt || Date.now())
   };
 }
 
@@ -1042,7 +1073,7 @@ function searchRecords(list, q) {
 /* ---------------- 同步 ---------------- */
 
 async function handleSyncFromBili() {
-  const items = await fetchOfficialHistory(5);
+  const items = await fetchOfficialHistory(4); // x/v2/history 分页 1~4，接口上限约 300 条
   const list = await getRecords();
   let added = 0;
   let updated = 0;
