@@ -99,7 +99,11 @@
 }
 .bwh-item:hover { background: var(--bwh-bg, #f1f2f3); border-color: var(--bwh-border, #e3e5e7); }
 
-/* 封面（懒加载：img 默认隐藏，加载成功后显示） */
+/* 封面（懒加载：img 默认隐藏，加载成功后显示；整体可点击跳转视频页） */
+a.bwh-cover {
+  display: block; /* 锚点默认 inline，需显式块级才能应用宽高 */
+  text-decoration: none;
+}
 .bwh-cover {
   flex: none;
   width: 96px;
@@ -155,7 +159,16 @@
 .bwh-title:hover { color: var(--bwh-pink, #fb7299); }
 
 .bwh-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; }
-.bwh-up { color: var(--bwh-text-2, #61666d); }
+.bwh-up { color: var(--bwh-text-2, #61666d); display: inline-flex; align-items: center; }
+.bwh-up-icon { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; flex: none; }
+.bwh-up-link {
+  color: var(--bwh-text-2, #61666d);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bwh-up-link:hover { color: var(--bwh-pink, #fb7299); }
 .bwh-time { color: var(--bwh-text-3, #9499a0); }
 
 /* 删除按钮（悬停显示） */

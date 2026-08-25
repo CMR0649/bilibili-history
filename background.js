@@ -5,7 +5,7 @@ const STORAGE_KEY_SETTINGS = 'bwh_settings_v1';
 const STORAGE_KEY_LOGS = 'bwh_logs_v1';
 const AUTO_SYNC_ALARM = 'bwh-auto-sync';
 const APP_NAME = 'bilibili-watch-history';
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const MINUTE_MS = 60 * 1000;
 const API_BASE = 'https://api.bilibili.com';
 const LOG_CAP = 500;
@@ -437,7 +437,7 @@ async function apiFetch(url, opts) {
   return json;
 }
 
-// 获取视频信息（标题 / UP主 / 封面）—— 优先使用 API
+// 获取视频信息（标题 / UP主 / UP主mid / 封面）—— 优先使用 API
 async function fetchViewByBvid(bvid) {
   const url = API_BASE + '/x/web-interface/view?bvid=' + encodeURIComponent(bvid);
   const json = await apiFetch(url);
@@ -446,6 +446,7 @@ async function fetchViewByBvid(bvid) {
   return {
     title: String(d.title || '').trim(),
     up: String((d.owner && d.owner.name) || '').trim(),
+    mid: String((d.owner && d.owner.mid) || ''),
     pic: String(d.pic || '')
   };
 }
@@ -585,12 +586,16 @@ function itemToRecord(item) {
     (item.author && item.author.name) ||
     (item.owner && item.owner.name) || ''
   ).trim();
+  const mid = String(
+    (item.owner && item.owner.mid) || item.author_mid || item.mid || ''
+  );
   const rawViewAt = Number(item.view_at);
   const viewAt = rawViewAt > 1e12 ? rawViewAt : rawViewAt * 1000; // 兼容秒 / 毫秒
   return {
     title: title,
-    url: videoUrl(bvid),
+    bvid: bvid,
     up: up,
+    mid: mid,
     lastWatchedAt: truncateToMinute(viewAt || Date.now())
   };
 }
@@ -683,8 +688,9 @@ async function mergeImportedItems(items) {
     }
     const rec = {
       title: s.title || '',
-      url: videoUrl(s.bvid),
+      bvid: s.bvid,
       up: s.up || '',
+      mid: s.mid || '',
       lastWatchedAt: truncateToMinute(s.viewAt || Date.now())
     };
     const r = mergeRecord(list, rec);
@@ -720,6 +726,7 @@ async function handleImportJson(msg) {
       bvid: bvid,
       title: String(r.title || ''),
       up: String(r.up || ''),
+      mid: String(r.mid || ''),
       viewAt: Number(r.lastWatchedAt) || 0,
       pic: ''
     });
@@ -756,7 +763,28 @@ function storageSet(obj) {
 
 async function getRecords() {
   const list = await storageGet(STORAGE_KEY);
-  return Array.isArray(list) ? list : [];
+  if (!Array.isArray(list)) return [];
+  // 兼容旧数据：无 bvid 的旧记录由 url 推导 bvid，并补齐 mid 字段
+  const out = [];
+  for (const r of list) {
+    const n = normalizeRecord(r);
+    if (n) out.push(n);
+  }
+  return out;
+}
+
+// 记录规范化：{title, bvid, up, mid, lastWatchedAt}（url 由 bvid 推导）
+function normalizeRecord(r) {
+  if (!r || typeof r !== 'object') return null;
+  const bvid = String(r.bvid || '') || bvidFromUrl(r.url || '');
+  if (!bvid) return null;
+  return {
+    title: r.title || '',
+    bvid: bvid,
+    up: r.up || '',
+    mid: String(r.mid || ''),
+    lastWatchedAt: r.lastWatchedAt || 0
+  };
 }
 
 async function saveRecords(list) {
@@ -798,20 +826,26 @@ async function saveSettings(settings) {
   await storageSet({ [STORAGE_KEY_SETTINGS]: normalizeSettings(settings) });
 }
 
-/* 去重合并：同一链接只保留一条记录，更新标题 / UP主 / 最后观看时间 */
+/* 去重合并：同一 bvid 只保留一条记录，更新标题 / UP主 / mid / 最后观看时间 */
 function mergeRecord(list, record) {
-  const url = canonicalizeUrl(record.url);
-  const idx = list.findIndex((r) => canonicalizeUrl(r.url) === url);
+  const bvid = String(record.bvid || '') || bvidFromUrl(record.url || '');
+  if (!bvid) return { added: false, updated: false };
+  const idx = list.findIndex((r) => (String(r.bvid || '') || bvidFromUrl(r.url || '')) === bvid);
   let added = false;
   let updated = false;
   if (idx >= 0) {
     const old = list[idx];
+    if (!old.bvid) old.bvid = bvid; // 旧数据补齐
     if (record.title && record.title !== old.title) {
       old.title = record.title;
       updated = true;
     }
     if (record.up && record.up !== old.up) {
       old.up = record.up;
+      updated = true;
+    }
+    if (record.mid && record.mid !== old.mid) {
+      old.mid = record.mid;
       updated = true;
     }
     if (!old.lastWatchedAt || record.lastWatchedAt > old.lastWatchedAt) {
@@ -822,8 +856,9 @@ function mergeRecord(list, record) {
   } else {
     list.push({
       title: record.title || '',
-      url: url,
+      bvid: bvid,
       up: record.up || '',
+      mid: record.mid || '',
       lastWatchedAt: record.lastWatchedAt || 0
     });
     added = true;
@@ -926,8 +961,9 @@ async function handleRecord(msg) {
   const fb = msg.fallback || {};
   const record = {
     title: (info && info.title) || String(fb.title || '').trim(),
-    url: videoUrl(bvid),
+    bvid: bvid,
     up: (info && info.up) || String(fb.up || '').trim(),
+    mid: (info && info.mid) || String(fb.mid || ''),
     lastWatchedAt: truncateToMinute(Date.now())
   };
   if (!record.title) {
@@ -957,8 +993,9 @@ async function dispatch(msg) {
       const list = await getRecords();
       const records = list.map((r) => ({
         title: r.title,
-        url: r.url,
+        bvid: r.bvid,
         up: r.up,
+        mid: r.mid || '',
         lastWatchedAt: r.lastWatchedAt
       }));
       const json = JSON.stringify(
@@ -976,9 +1013,9 @@ async function dispatch(msg) {
     }
 
     case 'remove': {
-      const url = canonicalizeUrl(msg.url);
+      const bvid = String(msg.bvid || '') || bvidFromUrl(msg.url);
       const list = await getRecords();
-      const next = list.filter((r) => canonicalizeUrl(r.url) !== url);
+      const next = list.filter((r) => r.bvid !== bvid);
       const removed = next.length !== list.length;
       await saveRecords(next);
       return { ok: true, removed: removed };

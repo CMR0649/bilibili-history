@@ -26,7 +26,7 @@
     return m ? m[1] : '';
   }
 
-  // 兜底方案：从页面 DOM 提取标题与 UP主（API 失败时使用）
+  // 兜底方案：从页面 DOM 提取标题、UP主与 UP主mid（API 失败时使用）
   function extractDomInfo() {
     let title = '';
     const h1 = document.querySelector('h1.video-title');
@@ -36,12 +36,21 @@
       if (t) title = t;
     }
     let up = '';
+    let mid = '';
     const upEl = document.querySelector(
       '.up-info-container .name, .up-info-container .up-name, ' +
       '.up-name-text, .up-info .name, a.username'
     );
     if (upEl) up = (upEl.textContent || '').trim();
-    return { title: title, up: up };
+    // 从 UP主链接中提取 mid（如 //space.bilibili.com/370185591/）
+    const midLink = document.querySelector(
+      '.up-info-container a[href*="space.bilibili.com"], a.username[href*="space.bilibili.com"]'
+    );
+    if (midLink) {
+      const m = (midLink.getAttribute('href') || '').match(/space\.bilibili\.com\/(\d+)/);
+      if (m) mid = m[1];
+    }
+    return { title: title, up: up, mid: mid };
   }
 
   function report() {
@@ -55,7 +64,7 @@
       type: 'record',
       bvid: currentBvid,
       url: 'https://www.bilibili.com/video/' + currentBvid,
-      fallback: { title: info.title, up: info.up }
+      fallback: { title: info.title, up: info.up, mid: info.mid }
     };
     sendLog('debug', 'content', '上报观看 ' + currentBvid + '（已播 ' + Math.round(played) + 's）');
     try {

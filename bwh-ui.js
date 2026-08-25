@@ -111,8 +111,13 @@
   /* ---------------- 封面懒加载 ---------------- */
 
   function bvidOf(record) {
+    if (record.bvid) return record.bvid;
     const m = String(record.url || '').match(/\/video\/(BV[0-9A-Za-z]+)/);
     return m ? m[1] : '';
+  }
+
+  function videoUrlOf(record) {
+    return record.url || ('https://www.bilibili.com/video/' + bvidOf(record));
   }
 
   function setCoverImg(coverEl, url) {
@@ -308,9 +313,13 @@
     function renderItem(app, r) {
       const item = el('div', 'bwh-item');
       const bvid = bvidOf(r);
+      const vUrl = videoUrlOf(r);
 
-      // 封面：先占位，懒加载到视口后再从 API 获取并显示
-      const cover = el('div', 'bwh-cover');
+      // 封面：可点击跳转视频页；先占位，懒加载到视口后再从 API 获取并显示
+      const cover = el('a', 'bwh-cover');
+      cover.href = vUrl || '#';
+      cover.target = '_blank';
+      cover.rel = 'noopener noreferrer';
       cover.setAttribute('data-bvid', bvid);
       cover.appendChild(el('span', 'bwh-cover-fallback', (r.title || '?').trim().charAt(0)));
       const img = el('img', 'bwh-cover-img');
@@ -323,14 +332,29 @@
 
       const info = el('div', 'bwh-info');
       const titleLink = el('a', 'bwh-title', r.title || '(无标题)');
-      titleLink.href = r.url || '#';
+      titleLink.href = vUrl || '#';
       titleLink.target = '_blank';
       titleLink.rel = 'noopener noreferrer';
       titleLink.title = r.title || '';
       info.appendChild(titleLink);
 
       const meta = el('div', 'bwh-meta');
-      meta.appendChild(el('span', 'bwh-up', 'UP主：' + (r.up || '未知')));
+      // UP主：up.svg 图标 + 名称；有 mid 时可点击跳转 https://space.bilibili.com/mid
+      const upWrap = el('span', 'bwh-up');
+      const upIcon = el('img', 'bwh-up-icon');
+      upIcon.src = 'icons/up.svg';
+      upIcon.alt = '';
+      upWrap.appendChild(upIcon);
+      if (r.mid) {
+        const upLink = el('a', 'bwh-up-link', r.up || '未知');
+        upLink.href = 'https://space.bilibili.com/' + r.mid;
+        upLink.target = '_blank';
+        upLink.rel = 'noopener noreferrer';
+        upWrap.appendChild(upLink);
+      } else {
+        upWrap.appendChild(document.createTextNode(' ' + (r.up || '未知')));
+      }
+      meta.appendChild(upWrap);
       meta.appendChild(el('span', 'bwh-time', '最后观看：' + BWH.formatMinute(r.lastWatchedAt)));
       info.appendChild(meta);
       item.appendChild(info);
@@ -340,7 +364,7 @@
         e.preventDefault();
         e.stopPropagation();
         if (!confirm('确定删除这条记录吗？')) return;
-        const res = await BWH.send({ type: 'remove', url: r.url });
+        const res = await BWH.send({ type: 'remove', url: vUrl, bvid: bvid });
         BWH.showToast(root, res.ok ? '已删除' : ('删除失败：' + (res.error || '')), !res.ok);
         if (res.ok) app.refresh();
       });
