@@ -45,6 +45,18 @@
 .bwh-header-title { font-size: 18px; font-weight: 600; white-space: nowrap; }
 .bwh-header-sub { font-size: 12px; color: var(--bwh-text-3, #9499a0); white-space: nowrap; }
 
+/* 顶栏：头部 + 日期筛选固定于页面顶部（随页面滚动吸顶） */
+.bwh-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bwh-bg, #f1f2f3);
+  padding: 0 0 10px;
+  margin: 0 0 6px;
+}
+.bwh-topbar .bwh-header { margin-bottom: 10px; }
+.bwh-topbar .bwh-filter-row { margin-bottom: 0; }
+
 /* 搜索框 */
 .bwh-search {
   flex: 1 1 220px;

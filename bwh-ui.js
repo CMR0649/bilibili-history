@@ -222,7 +222,6 @@
     actions.appendChild(btnSettings);
     actions.appendChild(btnSync);
     header.appendChild(actions);
-    wrap.appendChild(header);
 
     // 按日期筛选（日历样式日期选择）
     const filterRow = el('div', 'bwh-filter-row');
@@ -236,7 +235,12 @@
     filterRow.appendChild(el('span', 'bwh-filter-sep', '至'));
     filterRow.appendChild(dateTo);
     filterRow.appendChild(btnClearDate);
-    wrap.appendChild(filterRow);
+
+    // 顶栏：头部 + 日期筛选固定于页面顶部
+    const topbar = el('div', 'bwh-topbar');
+    topbar.appendChild(header);
+    topbar.appendChild(filterRow);
+    wrap.appendChild(topbar);
 
     const status = el('div', 'bwh-status', '');
     wrap.appendChild(status);
