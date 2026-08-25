@@ -4,7 +4,7 @@
 > 由 DeepSeek V4 Flash 编写，使用 Deepseek Harness
 
 一个基于 Manifest V3 的 Chromium 内核浏览器扩展，用于在本地保存 B 站视频的观看记录，
-提供独立查询页、搜索、封面显示、导出与导入 JSON。
+提供独立查询页、搜索、封面显示、导入/导出 JSON
 
 ## 功能
 
@@ -19,8 +19,3 @@
 在[Releases](https://github.com/CMR0649/bilibili-history/releases)页面下载crx文件  
 打开浏览器的扩展程序页面，并打开开发者模式  
 将crx文件拖入即可安装  
-
-### 导入说明
-
-- **导出 JSON**：在查询页或弹窗点击「导出 JSON」得到的文件，可在设置页「导入」中
-  重新导入（例如换浏览器后恢复记录）。
