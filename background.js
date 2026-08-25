@@ -662,206 +662,7 @@ function seedCoverCacheFromItems(items) {
   if (changed) saveCoverCache().catch(() => {});
 }
 
-/* ---------------- 爬取 /history 页面（同步全部历史记录） ---------------- */
-
-function dayStartMs(ts) {
-  const d = new Date(ts);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0).getTime();
-}
-
-// 从文本中解析观看时间；未精确到小时时补位到 0 时，解析失败返回 0
-function parseWatchDate(text) {
-  const t = String(text || '').trim();
-  if (!t) return 0;
-  const now = new Date();
-  let m;
-
-  // 完整日期时间：YYYY-MM-DD HH:MM(:SS)
-  m = t.match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})[日号]?\s*(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
-  if (m) {
-    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), m[6] ? Number(m[6]) : 0).getTime();
-  }
-  // 相对时间带小时：昨天/今天/前天 HH:MM（注意页面里无空格，如"今天21:52"）
-  m = t.match(/(昨天|今天|前天)\s*(\d{1,2}):(\d{1,2})/);
-  if (m) {
-    const d = new Date(now);
-    if (m[1] === '昨天') d.setDate(d.getDate() - 1);
-    if (m[1] === '前天') d.setDate(d.getDate() - 2);
-    d.setHours(Number(m[2]), Number(m[3]), 0, 0);
-    return d.getTime();
-  }
-  // MM-DD HH:MM（跨年回退一年）
-  m = t.match(/(\d{1,2})[-/.月](\d{1,2})[日号]?\s*(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
-  if (m) {
-    const d = new Date(now.getFullYear(), Number(m[1]) - 1, Number(m[2]), Number(m[3]), Number(m[4]), m[5] ? Number(m[5]) : 0);
-    if (d.getTime() > Date.now() + 86400 * 1000) d.setFullYear(d.getFullYear() - 1);
-    return d.getTime();
-  }
-  // 相对日期词（无小时 → 当天 0 时）
-  if (t.indexOf('刚刚') >= 0) return Date.now();
-  m = t.match(/(\d+)\s*分钟前/);
-  if (m) return Date.now() - Number(m[1]) * 60 * 1000;
-  m = t.match(/(\d+)\s*小时前/);
-  if (m) return Date.now() - Number(m[1]) * 3600 * 1000;
-  m = t.match(/(\d+)\s*天前/);
-  if (m) return dayStartMs(Date.now() - Number(m[1]) * 86400 * 1000);
-  if (t.indexOf('前天') >= 0) return dayStartMs(Date.now() - 2 * 86400 * 1000);
-  if (t.indexOf('昨天') >= 0) return dayStartMs(Date.now() - 86400 * 1000);
-  if (t.indexOf('今天') >= 0) return dayStartMs(Date.now());
-  // 仅日期（无小时 → 补位到 0 时）：YYYY-MM-DD
-  m = t.match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})[日号]?/);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0).getTime();
-  // 仅日期：MM-DD（跨年回退一年）
-  m = t.match(/(\d{1,2})[-/.月](\d{1,2})[日号]?/);
-  if (m) {
-    const d = new Date(now.getFullYear(), Number(m[1]) - 1, Number(m[2]), 0, 0, 0);
-    if (d.getTime() > Date.now() + 86400 * 1000) d.setFullYear(d.getFullYear() - 1);
-    return d.getTime();
-  }
-  return 0;
-}
-
-function sanitizeJson(s) {
-  return String(s)
-    .replace(/:\s*undefined\b/g, ':null')
-    .replace(/,\s*([}\]])/g, '$1');
-}
-
-function tryParseJson(s) {
-  try {
-    return JSON.parse(sanitizeJson(s));
-  } catch (e) {
-    return null;
-  }
-}
-
-// 递归收集形如 { bvid, view_at } 的历史记录条目
-function collectHistoryItems(obj, out, seen, depth) {
-  if (!obj || typeof obj !== 'object' || depth > 12) return;
-  if (Array.isArray(obj)) {
-    for (const v of obj) collectHistoryItems(v, out, seen, depth + 1);
-    return;
-  }
-  const bvid = typeof obj.bvid === 'string' ? obj.bvid : '';
-  if (/^BV[0-9A-Za-z]+$/.test(bvid) && (typeof obj.view_at === 'number' || typeof obj.viewAt === 'number')) {
-    if (!seen.has(bvid)) {
-      seen.add(bvid);
-      out.push({
-        bvid: bvid,
-        viewAt: (typeof obj.view_at === 'number' ? obj.view_at : obj.viewAt) * 1000,
-        title: typeof obj.title === 'string' ? obj.title : '',
-        up: typeof obj.owner_name === 'string' ? obj.owner_name
-          : typeof obj.author_name === 'string' ? obj.author_name
-          : typeof obj.up_name === 'string' ? obj.up_name
-          : obj.owner && typeof obj.owner.name === 'string' ? obj.owner.name
-          : ''
-      });
-    }
-    return;
-  }
-  for (const k of Object.keys(obj)) {
-    const v = obj[k];
-    if (v && typeof v === 'object') collectHistoryItems(v, out, seen, depth + 1);
-  }
-}
-
-// 策略一：解析页面内嵌 JSON 状态（window.__INITIAL_STATE__ 等）
-function extractFromEmbeddedState(html) {
-  const text = String(html || '');
-  const items = [];
-  const seen = new Set();
-  const scriptRe = /<script[^>]*>([\s\S]*?)<\/script>/g;
-  let sm;
-  while ((sm = scriptRe.exec(text))) {
-    const code = sm[1];
-    const stateRe = /window\.(?:__INITIAL_STATE__|__PINIA__|__NUXT__|__DATA__)\s*=\s*(\{[\s\S]*?\});/g;
-    let am;
-    while ((am = stateRe.exec(code))) {
-      const parsed = tryParseJson(am[1]);
-      if (parsed) collectHistoryItems(parsed, items, seen, 0);
-    }
-    if (!items.length) {
-      const whole = tryParseJson(code);
-      if (whole) collectHistoryItems(whole, items, seen, 0);
-    }
-  }
-  return items;
-}
-
-// 规范化封面 URL：去掉 @ 处理参数、补全协议；本地保存页的相对路径返回空
-function normalizeCoverUrl(src) {
-  const s = String(src || '').trim();
-  if (!s || s.indexOf('./') === 0 || s.indexOf('../') === 0) return '';
-  const cleaned = s.split('@')[0];
-  if (cleaned.indexOf('//') === 0) return 'https:' + cleaned; // 协议相对（//i0.hdslb.com/...）
-  if (/^https?:\/\//i.test(cleaned)) return cleaned;
-  if (cleaned.indexOf('/') === 0) return ''; // 根相对路径（本地保存页）
-  return '';
-}
-
-// 策略二：解析历史页卡片结构（.history-card / .bili-video-card），提取 bvid/标题/UP/观看时间/封面
-function extractFromHistoryHtml(html) {
-  const text = String(html || '');
-  const items = [];
-  const seen = new Set();
-  // 按 history-card 卡片分块（lookahead 精确匹配 class 名，避免 history-card__left 等误切）
-  const parts = text.split(/(?=class="history-card(?:\s|"))/);
-  for (const part of parts) {
-    if (!/class="history-card(?:\s|")/.test(part)) continue;
-    // 提取源链接 bvid：href="//www.bilibili.com/video/BVxxxxx
-    const hrefMatch = part.match(/href="(?:https?:)?\/\/www\.bilibili\.com\/video\/(BV[0-9A-Za-z]+)/);
-    if (!hrefMatch) continue;
-    const bvid = hrefMatch[1];
-    if (seen.has(bvid)) continue;
-    seen.add(bvid);
-
-    let title = '';
-    const tm = part.match(/class="bili-video-card__title[^"]*"[^>]*title="([^"]*)"/);
-    if (tm) title = tm[1];
-    if (!title) {
-      const tm2 = part.match(/bili-video-card__title[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/);
-      if (tm2) title = tm2[1].replace(/<[^>]+>/g, '').trim();
-    }
-
-    let up = '';
-    const am = part.match(/bili-video-card__author[\s\S]*?<\/a>/);
-    if (am) {
-      const spans = am[0].match(/<span>([^<]+)<\/span>/g) || [];
-      for (const sp of spans) {
-        const txt = sp.replace(/<[^>]+>/g, '').trim();
-        if (txt) up = txt; // 取最后一个非空 span（UP主名）
-      }
-    }
-
-    const timeText = (part.match(/bili-video-card__corner[\s\S]*?<span>([^<]*)<\/span>/) || [])[1] || '';
-    const viewAt = parseWatchDate(timeText);
-    const pic = normalizeCoverUrl((part.match(/bili-cover-card__thumbnail[^>]*>\s*<img[^>]*src="([^"]*)"/) || [])[1] || '');
-
-    items.push({ bvid: bvid, title: title, up: up, viewAt: viewAt, pic: pic });
-  }
-  return items;
-}
-
-// 策略三：回退解析 HTML 中的视频链接与日期文本（页面未内嵌 JSON 时）
-function extractFromHtml(html) {
-  const text = String(html || '');
-  const re = /\/video\/(BV[0-9A-Za-z]+)/g;
-  const matches = [];
-  let m;
-  while ((m = re.exec(text))) matches.push({ bvid: m[1], index: m.index });
-  const byBvid = new Map();
-  for (let i = 0; i < matches.length; i++) {
-    const { bvid, index } = matches[i];
-    const end = i + 1 < matches.length ? matches[i + 1].index : Math.min(text.length, index + 3000);
-    const windowText = text.slice(index, end).replace(/<[^>]+>/g, ' ');
-    const viewAt = parseWatchDate(windowText);
-    const prev = byBvid.get(bvid);
-    if (!prev || (viewAt && !prev.viewAt)) byBvid.set(bvid, { bvid: bvid, viewAt: viewAt });
-  }
-  return Array.from(byBvid.values());
-}
-
-/* ---------------- 导入（历史记录页 HTML / 本扩展导出的 JSON） ---------------- */
+/* ---------------- 导入（本扩展导出的 JSON） ---------------- */
 
 function bvidFromUrl(url) {
   const m = String(url || '').match(/\/video\/(BV[0-9A-Za-z]+)/);
@@ -894,34 +695,6 @@ async function mergeImportedItems(items) {
   return { added: added, updated: updated, skipped: skipped, total: list.length };
 }
 
-// 解析导入的历史记录页 HTML（依次尝试：内嵌 JSON → 卡片结构 → 链接回退）
-function parseHistoryHtmlImport(html) {
-  let items = extractFromEmbeddedState(html);
-  if (items.length) return items;
-  items = extractFromHistoryHtml(html);
-  if (items.length) return items;
-  items = extractFromHtml(html);
-  return items;
-}
-
-async function handleImportHtml(msg) {
-  const html = String(msg.html || '');
-  if (!html.trim()) return { ok: false, error: 'HTML 内容为空' };
-  log('debug', 'import', '解析历史记录页 HTML，大小 ' + html.length + ' 字节');
-  const items = parseHistoryHtmlImport(html);
-  if (!items.length) {
-    log('warn', 'import', '未从 HTML 中解析到任何历史记录');
-    return { ok: false, error: '未从 HTML 中解析到任何历史记录（请确认是 bilibili 历史记录页面的 HTML；未完全加载的文件也可导入）' };
-  }
-  seedCoverCacheFromItems(
-    items
-      .filter((s) => s.pic)
-      .map((s) => ({ bvid: s.bvid, pic: s.pic }))
-  );
-  const res = await mergeImportedItems(items);
-  log('debug', 'import', 'HTML 导入完成：解析 ' + items.length + '，新增 ' + res.added + '，更新 ' + res.updated);
-  return { ok: true, parsed: items.length, added: res.added, updated: res.updated, skipped: res.skipped, total: res.total };
-}
 
 async function handleImportJson(msg) {
   let data;
@@ -1226,16 +999,6 @@ async function dispatch(msg) {
       }
     }
 
-    // 导入历史记录页 HTML 文件
-    case 'import-html': {
-      try {
-        return await handleImportHtml(msg);
-      } catch (e) {
-        log('error', 'import', 'HTML 导入失败', (e && e.message) || String(e));
-        throw e;
-      }
-    }
-
     // 导入本扩展导出的 JSON 文件
     case 'import-json': {
       try {
@@ -1396,10 +1159,6 @@ if (typeof module !== 'undefined' && module.exports) {
     mergeRecord: mergeRecord,
     searchRecords: searchRecords,
     itemToRecord: itemToRecord,
-    parseWatchDate: parseWatchDate,
-    extractFromEmbeddedState: extractFromEmbeddedState,
-    extractFromHistoryHtml: extractFromHistoryHtml,
-    extractFromHtml: extractFromHtml,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS
   };
 }

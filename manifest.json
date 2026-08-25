@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Bilibili 观看记录增强",
   "version": "1.2.0",
-  "description": "本地保存 B 站视频的观看记录， 提供独立查询页、搜索、封面显示、导出 JSON 与导入（历史记录页 HTML / 导出 JSON）。",
+  "description": "本地保存 B 站视频的观看记录， 提供独立查询页、搜索、封面显示、导出与导入 JSON。",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",

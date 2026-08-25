@@ -324,7 +324,7 @@
     renderLogs();
   });
 
-  /* ---------------- 导入（历史记录页 HTML / 导出 JSON） ---------------- */
+  /* ---------------- 导入（本扩展导出的 JSON） ---------------- */
 
   function setImportStatus(text, isError) {
     const el = $('import-status');
@@ -341,7 +341,7 @@
     });
   }
 
-  async function doImport(file, type) {
+  async function doImport(file) {
     if (!file) return;
     setImportStatus('正在解析 ' + file.name + ' …');
     let text;
@@ -351,29 +351,22 @@
       setImportStatus('读取文件失败：' + (e && e.message), true);
       return;
     }
-    const res = await BWH.send({ type: type, [type === 'import-html' ? 'html' : 'json']: text });
+    const res = await BWH.send({ type: 'import-json', json: text });
     if (!res.ok) {
-      setImportStatus(type === 'import-html' ? 'HTML 导入失败' : 'JSON 导入失败' + '：' + (res.error || ''), true);
+      setImportStatus('JSON 导入失败：' + (res.error || ''), true);
       return;
     }
     setImportStatus(
-      (type === 'import-html' ? 'HTML' : 'JSON') +
-      ' 导入完成：新增 ' + res.added + ' 条，更新 ' + res.updated + ' 条（解析 ' + res.parsed + ' 条' +
+      'JSON 导入完成：新增 ' + res.added + ' 条，更新 ' + res.updated + ' 条（解析 ' + res.parsed + ' 条' +
       (res.skipped ? '，跳过 ' + res.skipped : '') + '）'
     );
     loadLogs();
   }
 
-  $('import-html-file').addEventListener('change', (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = '';
-    doImport(file, 'import-html');
-  });
-
   $('import-json-file').addEventListener('change', (e) => {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
-    doImport(file, 'import-json');
+    doImport(file);
   });
 
   /* ---------------- 导出与清空 ---------------- */
