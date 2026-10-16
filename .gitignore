@@ -1,0 +1,8 @@
+# 测试文件夹（不纳入版本控制）
+test/
+
+# 通用忽略项
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
